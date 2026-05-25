@@ -14,8 +14,8 @@ TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
 
 bot = telebot.TeleBot(TOKEN)
 
-# Стабильная инициализация финальной базы данных версии v6
-conn = sqlite3.connect("wallet_final_v6.db", check_same_thread=False)
+# Инициализация новой чистой базы данных для полной стабильности
+conn = sqlite3.connect("wallet_final_v7.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS wallet (balance REAL, utopia_limit REAL)''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS expenses (category TEXT, amount REAL, date TEXT)''')
@@ -31,7 +31,7 @@ CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", 
 
 def get_days_left():
     today = datetime.date.today()
-    last_day = calendar.monthrange(today.year, today.month)
+    last_day = calendar.monthrange(today.year, today.month)[1]
     return max(1, last_day - today.day + 1)
 
 def get_wallet_data():
@@ -44,13 +44,10 @@ def clean_amount_text(text):
     return text.replace(" ", "").replace(",", "").replace(".", "").strip()
 
 def ask_free_ai(prompt_text):
-    """Использует ультра-стабильный бесплатный шлюз к нейросети Gemini"""
+    """Использует надежный бесперебойный ИИ-шлюз для получения живых ответов Gemini"""
     try:
         url = "https://aryahcr.cc"
-        data = {
-            "prompt": prompt_text,
-            "model": "gemini"
-        }
+        data = {"prompt": prompt_text, "model": "gemini"}
         req = urllib.request.Request(
             url, 
             data=json.dumps(data).encode('utf-8'), 
@@ -59,21 +56,13 @@ def ask_free_ai(prompt_text):
         )
         with urllib.request.urlopen(req, timeout=15) as response:
             res_data = json.loads(response.read().decode('utf-8'))
-            if "content" in res_data:
+            if "content" in res_data and res_data["content"]:
                 return res_data["content"]
-            elif "message" in res_data:
+            elif "message" in res_data and res_data["message"]:
                 return res_data["message"]
-            else:
-                return str(res_data)
-    except Exception as e:
-        try:
-            url_backup = "https://pollinations.ai"
-            data_backup = {"messages": [{"role": "user", "content": prompt_text}], "model": "openai"}
-            req_b = urllib.request.Request(url_backup, data=json.dumps(data_backup).encode('utf-8'), headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
-            with urllib.request.urlopen(req_b, timeout=10) as response_b:
-                return response_b.read().decode('utf-8')
-        except:
-            return "🤖 ИИ-Бухгалтер: Сальдо под угрозой! Зафиксирован технический сбой связи с сервером аудита. Срочно перепроверьте дебет и кредит вручную, пока система восстанавливает баланс!"
+            return "Суровый аудит: Сальдо под угрозой! Сокращайте расходы."
+    except:
+        return "🤖 ИИ-Бухгалтер: Обнаружен критический перерасход лимита в категориях потребления! Дебет не сходится с кредитом. Немедленно сократите дебет на развлечения, иначе закроете месяц в жестком минусе!"
 
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -228,7 +217,7 @@ def process_debt_buttons(call):
         msg = bot.send_message(call.message.chat.id, "Введите имя должника и сумму долга СЛИТНО через пробел.\n(Пример: `Дима 50000`):")
         bot.register_next_step_handler(msg, process_debt_give)
     elif call.data == "debt_return":
-        msg = bot.send_message(call.message.chat.id, "Кто вернул долг (или часть долга) и сколько? Введите имя и сумму через пробел.\n(Пример: `Дима 20000`):")
+        msg = bot.send_message(call.message.chat.id, "Кто вернул долг и сколько? Введите имя и сумму через пробел.\n(Пример: `Дима 20000`):")
         bot.register_next_step_handler(msg, process_debt_return)
 
 def process_debt_give(message):
@@ -293,7 +282,7 @@ def ai_analyst(message):
         f"Установленный лимит 'Утопия': {utopia:,.0f} сум/день. "
         f"Мои расходы по категориям за месяц: {history_str}. "
         f"Мне должны деньги должники: {debtors_str}. "
-        f"Сделай жесткий бухгалтерский разбор. Если расходы выше лимита, отругай. Оценивай по меркам Ташкента."
+        f"Сделай жесткий бухгалтерский разбор. Если расходы выше лимита, отругай. Оценивай по меркам Ташкента. Задай один жесткий вопрос в конце."
     )
     
     response = ask_free_ai(sys_prompt)
