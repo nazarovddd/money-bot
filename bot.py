@@ -78,6 +78,24 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(message.chat.id, "🇺🇿 Привет! Я твой личный бухгалтер. Управляй бюджетом с помощью кнопок:", reply_markup=get_main_keyboard())
+
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    help_text = (
+        "🇺🇿 *Шпаргалка по управлению ИИ-Бухгалтером:*\n\n"
+        "📉 *Расход* — Записать трату. Введите сумму, а затем выберите категорию. "
+        "Бот автоматически проверит ваш суточный лимит.\n\n"
+        "➕ *Доход* — Пополнить кошелек. Сумма добавится к общему балансу.\n\n"
+        "✨ *Утопия* — Задать ваш личный жесткий лимит на день (например, 40 000 сум). "
+        "Бот будет ругать вас в ту же секунду, как вы его превысите.\n\n"
+        "📊 *Аналитика* — Посмотреть баланс, траты за сегодня и математический остаток.\n\n"
+        "🤖 *ИИ Бухгалтер* — Включает аудит вашей базы данных нейросетью. "
+        "Вы можете общаться с ИИ в режиме диалога, задавать вопросы по ценам в Узбекистане и экономии. "
+        "Для выхода из чата с ИИ просто нажмите любую другую кнопку меню.\n\n"
+        "💡 *Правило ввода цифр:* Вы можете писать суммы в любом удобном виде: "
+        "`40 000`, `40000` или `40,000` — бот всё поймет!"
+    )
+    bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
 @bot.message_handler(func=lambda msg: msg.text == "✨ Утопия")
 def view_utopia(message):
     _, utopia = get_wallet_data()
@@ -103,7 +121,7 @@ def view_analytics(message):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_t = cursor.fetchone()
-    spent_today = row_t if row_t and row_t else 0.0
+    spent_today = row_t[0] if row_t and row_t[0] else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
@@ -156,8 +174,8 @@ def process_expense_amount(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
 def process_expense_category(call):
     parts = call.data.split("_")
-    category_key = parts
-    amount = float(parts)
+    category_key = parts[1]
+    amount = float(parts[2])
     
     b, utopia = get_wallet_data()
     new_bal = b - amount
@@ -169,7 +187,7 @@ def process_expense_category(call):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_today = cursor.fetchone()
-    today_spent = row_today if row_today and row_today else 0.0
+    today_spent = row_today[0] if row_today and row_today[0] else 0.0
     
     alert = ""
     if today_spent > utopia:
