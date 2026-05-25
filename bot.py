@@ -10,7 +10,7 @@ import telebot
 from telebot import types
 
 # СЮДА ВСТАВЬТЕ ВАШ ТОКЕН ВНУТРЬ КАВЫЧЕК:
-TOKEN = "ВАШ_ТОКЕН_ТЕЛЕГРАМ_БОТА"
+TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
 
 bot = telebot.TeleBot(TOKEN)
 
