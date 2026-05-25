@@ -14,7 +14,7 @@ TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
 
 bot = telebot.TeleBot(TOKEN)
 
-# Инициализация абсолютно новой чистой базы данных
+# Инициализация базы данных SQLite
 conn = sqlite3.connect("wallet_final.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS wallet (balance REAL, utopia_limit REAL)''')
@@ -29,6 +29,7 @@ if not cursor.fetchone():
 CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", "развлечения": "🎉 Развлечения", "для дома": "🏠 Для дома"}
 
 def get_days_left():
+    """Автоматически считает количество дней до конца текущего месяца по календарю"""
     today = datetime.date.today()
     last_day = calendar.monthrange(today.year, today.month)
     return max(1, last_day - today.day + 1)
@@ -38,11 +39,13 @@ def get_wallet_data():
     return cursor.fetchone()
 
 def clean_amount_text(text):
+    """Очищает любой ввод пользователя от пробелов, запятых и точек (например: '40 000', '40,000' -> '40000')"""
     if not text:
         return ""
     return text.replace(" ", "").replace(",", "").replace(".", "")
 
 def ask_free_ai(prompt_text):
+    """Отправляет запрос ИИ со специальными заголовками браузера для обхода блокировок"""
     try:
         url = "https://pollinations.ai"
         data = {"messages": [{"role": "user", "content": prompt_text}], "model": "openai"}
@@ -51,14 +54,14 @@ def ask_free_ai(prompt_text):
             data=json.dumps(data).encode('utf-8'), 
             headers={
                 'Content-Type': 'application/json',
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
             }, 
             method='POST'
         )
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
-    except:
-        return "Суровый адит: Обнаружена ошибка дебита! Похоже, финансовая нейросеть временно недоступна."
+    except Exception as e:
+        return "Суровый аудит: Обнаружена ошибка дебита! Финансовая нейросеть перегружена. Сокращайте баланс на развлечения вручную, сальдо под угрозой!"
 
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -75,21 +78,50 @@ def get_main_keyboard():
 @bot.message_handler(commands=['start'])
 def start(message):
     bot.send_message(message.chat.id, "🇺🇿 Привет! Я твой личный бухгалтер. Управляй бюджетом с помощью кнопок:", reply_markup=get_main_keyboard())
+
+@bot.message_handler(commands=['help'])
+def help_command(message):
+    help_text = (
+        "🇺🇿 *Шпаргалка по управлению ИИ-Бухгалтером:*\n\n"
+        "📉 *Расход* — Записать трату. Введите сумму, а затем выберите категорию.\n\n"
+        "➕ *Доход* — Пополнить кошелек. Сумма добавится к общему балансу.\n\n"
+        "✨ *Утопия* — Посмотреть текущую цель. Чтобы обновить лимит, отправьте сообщение: `лимит 40000`.\n\n"
+        "📊 *Аналитика* — Посмотреть баланс, траты за сегодня и математический остаток.\n\n"
+        "🤖 *ИИ Бухгалтер* — Включает аудит вашей базы данных нейросетью.\n\n"
+        "💡 *Правило ввода цифр:* Вы можете писать суммы в любом удобном виде: "
+        "`40 000`, `40000` или `40,000` — бот всё поймет!"
+    )
+    bot.send_message(message.chat.id, help_text, parse_mode="Markdown")
 @bot.message_handler(func=lambda msg: msg.text == "✨ Утопия")
 def view_utopia(message):
     _, utopia = get_wallet_data()
-    msg = bot.send_message(message.chat.id, f"🪐 *Режим УТОПИЯ*\n\nТекущий жесткий лимит: *{utopia:,.0f} сум/день*.\n\nВведи новую сумму цифрами, которую ты запрещаешь себе превышать в день:", parse_mode="Markdown")
-    bot.register_next_step_handler(msg, set_utopia)
+    bot.send_message(
+        message.chat.id, 
+        f"🪐 *Режим УТОПИЯ*\n\n"
+        f"Текущий жесткий лимит: *{utopia:,.0f} сум/день*.\n\n"
+        f" Чтобы изменить или установить лимит, просто отправьте сообщение в формате:\n"
+        f"`лимит 40000` (или `лимит 40 000`)", 
+        parse_mode="Markdown"
+    )
 
-def set_utopia(message):
+@bot.message_handler(func=lambda msg: msg.text.lower().startswith("лимит"))
+def set_utopia_direct(message):
     try:
-        clean_text = clean_amount_text(message.text)
+        raw_amount = message.text.lower().replace("лимит", "").strip()
+        clean_text = clean_amount_text(raw_amount)
         amount = float(clean_text)
+        
         cursor.execute("UPDATE wallet SET utopia_limit = ?", (amount,))
         conn.commit()
-        bot.send_message(message.chat.id, f"✅ Жесткий лимит «Утопия» успешно обновлен в базе: *{amount:,.0f} сум/день*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
+        
+        bot.send_message(
+            message.chat.id, 
+            f"✅ Жесткий лимит «Утопия» успешно обновлен в базе: *{amount:,.0f} сум/день*.", 
+            reply_markup=get_main_keyboard(), 
+            parse_mode="Markdown"
+        )
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами.")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Пишите строго в формате: `лимит 40000`")
 
 @bot.message_handler(func=lambda msg: msg.text == "📊 Аналитика")
 def view_analytics(message):
@@ -103,7 +135,7 @@ def view_analytics(message):
     spent_today = row_t if row_t and row_t else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
-    bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
+    bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text == "➕ Доход")
 def start_income(message):
@@ -153,8 +185,8 @@ def process_expense_amount(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
 def process_expense_category(call):
     parts = call.data.split("_")
-    category_key = parts[1]
-    amount = float(parts[2])
+    category_key = parts
+    amount = float(parts)
     
     b, utopia = get_wallet_data()
     new_bal = b - amount
@@ -166,7 +198,7 @@ def process_expense_category(call):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_today = cursor.fetchone()
-    today_spent = row_today[0] if row_today and row_today[0] else 0.0
+    today_spent = row_today if row_today and row_today else 0.0
     
     alert = ""
     if today_spent > utopia:
@@ -174,7 +206,7 @@ def process_expense_category(call):
     else:
         remains = utopia - today_spent
         if remains <= 15000 and remains > 0:
-            alert = f"\n\n⚠️ *ВНИМАНИЕ!* Ты стремительно приближаешься к критическому лимиту на сегодня! Осталось всего *{remains:,.0f} сум*. Дальнейшие трат делай обдуманно и трать раздумывая! 🧐"
+            alert = f"\n\n⚠️ *ВНИМАНИЕ!* Ты стремительно приближаешься к критическому лимиту на сегодня! Осталось всего *{remains:,.0f} сум*. Дальнейшие траты делай обдуманно и трать раздумывая! 🧐"
         else:
             alert = f"\n\n🟢 Твой запас лимита до конца дня: *{remains:,.0f} сум*. Всё в норме."
         
@@ -192,10 +224,15 @@ def ai_analyst(message):
     bot.send_message(message.chat.id, "🔄 ИИ изучает вашу базу данных и анализирует рынок Узбекистана...")
     balance, utopia = get_wallet_data()
     
+    cursor.execute("SELECT category, amount, date FROM expenses ORDER BY rowid DESC LIMIT 10")
+    history = cursor.fetchall()
+    history_str = ", ".join([f"{CATEGORIES.get(c, c)}: {a:,.0f}" for c, a, d in history]) if history else "Трат пока нет"
+
     sys_prompt = (
-        f"Ты суровый главный бухгалтер в Узбекистане. Оцени бюджет пользователя. "
-        f"В кошельке: {balance} сум. Утопия: {utopia} сум/день. Напиши строгий короткий аудит трат, учитывая цены в Ташкенте. "
-        f"Используй слова дебет, кредит, сальдо. Задай один вопрос."
+        f"Ты строгий главный бухгалтер в Ташкенте. Проведи аудит кошелька. "
+        f"Баланс: {balance:,.0f} сум. Дневной лимит: {utopia:,.0f} сум. "
+        f"Последние траты: {history_str}. Ответь на русском языке. Используй бухгалтерские термины (сальдо, дебет, кредит), "
+        f"ругай за перерасход лимита, оценивай цены по меркам Узбекистана (сум) и в конце задай один жесткий вопрос пользователю."
     )
     
     response = ask_free_ai(sys_prompt)
@@ -211,7 +248,7 @@ def ai_chat_loop(message):
         elif message.text == "🤖 ИИ Бухгалтер": ai_analyst(message)
         return
     
-    response = ask_free_ai(f"Ты бухгалтер в Узбекистане. Ответь коротко на реплику: {message.text}")
+    response = ask_free_ai(f"Контекст: Ты суровый бухгалтер в Узбекистане. Коротко ответь на реплику пользователя: {message.text}")
     msg = bot.send_message(message.chat.id, f"🤖 *ИИ-Бухгалтер:*\n\n{response}\n\n_(Для продолжения пишите сюда, для выхода нажмите кнопку меню)_", parse_mode="Markdown")
     bot.register_next_step_handler(msg, ai_chat_loop)
 
