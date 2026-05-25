@@ -88,7 +88,7 @@ def view_analytics(message):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_t = cursor.fetchone()
-    spent_today = row_t[0] if row_t and row_t[0] else 0.0
+    spent_today = row_t if row_t and row_t else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
@@ -141,8 +141,8 @@ def process_expense_amount(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
 def process_expense_category(call):
     parts = call.data.split("_")
-    category_key = parts[1]
-    amount = float(parts[2])
+    category_key = parts
+    amount = float(parts)
     
     b, utopia = get_wallet_data()
     new_bal = b - amount
@@ -152,10 +152,10 @@ def process_expense_category(call):
     cursor.execute("INSERT INTO expenses VALUES (?, ?, ?)", (category_key, amount, today))
     conn.commit()
     
-    # Проверяем общие траты за один сегодняшний день
+    # Проверяем общие трат за один сегодняшний день
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_today = cursor.fetchone()
-    today_spent = row_today[0] if row_today and row_today[0] else 0.0
+    today_spent = row_today if row_today and row_today else 0.0
     
     # Сравниваем траты за сегодня строго с вашей Утопией!
     alert = ""
