@@ -15,7 +15,7 @@ from telebot import types
 #  ТОКЕН: задайте переменную окружения BOT_TOKEN
 #  Например: export BOT_TOKEN="ваш_токен"
 # ──────────────────────────────────────────────
-TOKEN = os.environ.get("BOT_TOKEN", "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM")
+TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(TOKEN)
  
 # ──────────────────────────────────────────────
