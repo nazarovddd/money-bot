@@ -10,11 +10,11 @@ import telebot
 from telebot import types
 
 # СЮДА ВСТАВЬТЕ ВАШ ТОКЕН ВНУТРЬ КАВЫЧЕК:
-TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
+TOKEN = "ВАШ_ТОКЕН_ТЕЛЕГРАМ_БОТА"
 
 bot = telebot.TeleBot(TOKEN)
 
-# Инициализация базы данных SQLite
+# Инициализация базы данных SQLite (используем стабильное имя)
 conn = sqlite3.connect("wallet_final.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS wallet (balance REAL, utopia_limit REAL)''')
@@ -39,10 +39,10 @@ def get_wallet_data():
     return cursor.fetchone()
 
 def clean_amount_text(text):
-    """Очищает любой ввод пользователя от пробелов, запятых и точек (например: '40 000', '40,000' -> '40000')"""
+    """Очищает любой ввод пользователя от пробелов, запятых, точек и слова 'лимит'"""
     if not text:
         return ""
-    return text.replace(" ", "").replace(",", "").replace(".", "")
+    return text.lower().replace("лимит", "").replace(" ", "").replace(",", "").replace(".", "").strip()
 
 def ask_free_ai(prompt_text):
     """Отправляет запрос ИИ со специальными заголовками браузера для обхода блокировок"""
@@ -85,7 +85,7 @@ def help_command(message):
         "🇺🇿 *Шпаргалка по управлению ИИ-Бухгалтером:*\n\n"
         "📉 *Расход* — Записать трату. Введите сумму, а затем выберите категорию.\n\n"
         "➕ *Доход* — Пополнить кошелек. Сумма добавится к общему балансу.\n\n"
-        "✨ *Утопия* — Посмотреть текущую цель. Чтобы обновить лимит, отправьте сообщение: `лимит 40000`.\n\n"
+        "✨ *Утопия* — Задать ваш жесткий лимит на день. Можно писать просто цифры.\n\n"
         "📊 *Аналитика* — Посмотреть баланс, траты за сегодня и математический остаток.\n\n"
         "🤖 *ИИ Бухгалтер* — Включает аудит вашей базы данных нейросетью.\n\n"
         "💡 *Правило ввода цифр:* Вы можете писать суммы в любом удобном виде: "
@@ -95,20 +95,19 @@ def help_command(message):
 @bot.message_handler(func=lambda msg: msg.text == "✨ Утопия")
 def view_utopia(message):
     _, utopia = get_wallet_data()
-    bot.send_message(
+    msg = bot.send_message(
         message.chat.id, 
         f"🪐 *Режим УТОПИЯ*\n\n"
         f"Текущий жесткий лимит: *{utopia:,.0f} сум/день*.\n\n"
-        f" Чтобы изменить или установить лимит, просто отправьте сообщение в формате:\n"
-        f"`лимит 40000` (или `лимит 40 000`)", 
+        f"Введи новую сумму цифрами, которую ты запрещаешь себе превышать в день\n"
+        f"(Например: `40000` или `40 000`):", 
         parse_mode="Markdown"
     )
+    bot.register_next_step_handler(msg, set_utopia)
 
-@bot.message_handler(func=lambda msg: msg.text.lower().startswith("лимит"))
-def set_utopia_direct(message):
+def set_utopia(message):
     try:
-        raw_amount = message.text.lower().replace("лимит", "").strip()
-        clean_text = clean_amount_text(raw_amount)
+        clean_text = clean_amount_text(message.text)
         amount = float(clean_text)
         
         cursor.execute("UPDATE wallet SET utopia_limit = ?", (amount,))
@@ -121,7 +120,7 @@ def set_utopia_direct(message):
             parse_mode="Markdown"
         )
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Ошибка! Пишите строго в формате: `лимит 40000`")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Не удалось распознать сумму. Нажмите кнопку '✨ Утопия' заново и введите только число.")
 
 @bot.message_handler(func=lambda msg: msg.text == "📊 Аналитика")
 def view_analytics(message):
@@ -132,7 +131,7 @@ def view_analytics(message):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_t = cursor.fetchone()
-    spent_today = row_t if row_t and row_t else 0.0
+    spent_today = row_t[0] if row_t and row_t[0] is not None else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
@@ -185,8 +184,8 @@ def process_expense_amount(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
 def process_expense_category(call):
     parts = call.data.split("_")
-    category_key = parts
-    amount = float(parts)
+    category_key = parts[1]  # Исправлено извлечение ключа категории
+    amount = float(parts[2])  # Исправлено извлечение суммы
     
     b, utopia = get_wallet_data()
     new_bal = b - amount
@@ -198,7 +197,7 @@ def process_expense_category(call):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_today = cursor.fetchone()
-    today_spent = row_today if row_today and row_today else 0.0
+    today_spent = row_today[0] if row_today and row_today[0] is not None else 0.0
     
     alert = ""
     if today_spent > utopia:
