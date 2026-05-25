@@ -1,4 +1,3 @@
-```python
 import sqlite3
 import datetime
 import calendar
@@ -13,7 +12,7 @@ import telebot
 from telebot import types
 
 # =========================
-# ВСТАВЬ СВОЙ НОВЫЙ ТОКЕН
+# ВСТАВЬ НОВЫЙ ТОКЕН
 # =========================
 TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
 
@@ -25,20 +24,20 @@ bot = telebot.TeleBot(TOKEN)
 conn = sqlite3.connect("wallet_final_v4.db", check_same_thread=False)
 cursor = conn.cursor()
 
-cursor.execute('''
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS wallet (
     balance REAL,
     utopia_limit REAL
 )
-''')
+""")
 
-cursor.execute('''
+cursor.execute("""
 CREATE TABLE IF NOT EXISTS expenses (
     category TEXT,
     amount REAL,
     date TEXT
 )
-''')
+""")
 
 conn.commit()
 
@@ -59,7 +58,7 @@ CATEGORIES = {
 }
 
 # =========================
-# УМНЫЙ ПАРСЕР СУММ
+# ПАРСЕР СУММ
 # =========================
 def parse_amount(text):
     s = text.strip()
@@ -71,9 +70,9 @@ def parse_amount(text):
     )
 
     if not s:
-        raise ValueError("empty amount")
+        raise ValueError("Пустая сумма")
 
-    # Если есть и точка и запятая
+    # Есть и точка и запятая
     if ',' in s and '.' in s:
         last_sep_pos = max(s.rfind(','), s.rfind('.'))
 
@@ -115,7 +114,7 @@ def parse_amount(text):
     return float(Decimal(s))
 
 # =========================
-# ОСТАЛОСЬ ДНЕЙ
+# ДНЕЙ ДО КОНЦА МЕСЯЦА
 # =========================
 def get_days_left():
     today = datetime.date.today()
@@ -138,7 +137,7 @@ def get_wallet_data():
     return cursor.fetchone()
 
 # =========================
-# FREE AI
+# ИИ
 # =========================
 def ask_free_ai(prompt_text):
     try:
@@ -168,7 +167,7 @@ def ask_free_ai(prompt_text):
             return response.read().decode('utf-8')
 
     except Exception as e:
-        return f"Ошибка связи с ИИ: {e}"
+        return f"Ошибка ИИ: {e}"
 
 # =========================
 # КЛАВИАТУРА
@@ -211,25 +210,24 @@ def get_main_keyboard():
 def start(message):
 
     welcome = (
-        "🇺🇿 *Привет! Я твой ИИ-Бухгалтер!*\n\n"
+        "🇺🇿 Привет! Я твой ИИ-Бухгалтер!\n\n"
 
         "➕ Доход:\n"
-        "`доход 500000`\n\n"
+        "доход 500000\n\n"
 
         "✨ Лимит:\n"
-        "`лимит 40000`\n\n"
+        "лимит 40000\n\n"
 
         "📉 Расход:\n"
-        "`15000 еда`\n"
-        "`55,00 поездки`\n"
-        "`500 000 развлечения`"
+        "15000 еда\n"
+        "55,00 поездки\n"
+        "500 000 развлечения"
     )
 
     bot.send_message(
         message.chat.id,
         welcome,
-        reply_markup=get_main_keyboard(),
-        parse_mode="Markdown"
+        reply_markup=get_main_keyboard()
     )
 
 # =========================
@@ -242,8 +240,7 @@ def inst_income(message):
 
     bot.send_message(
         message.chat.id,
-        "💰 Пример:\n`доход 500000`\n`доход 500 000`\n`доход 55,00`",
-        parse_mode="Markdown"
+        "Пример:\nдоход 500000\nдоход 500 000\nдоход 55,00"
     )
 
 @bot.message_handler(
@@ -253,8 +250,7 @@ def inst_utopia(message):
 
     bot.send_message(
         message.chat.id,
-        "🪐 Пример:\n`лимит 40000`\n`лимит 40 000`",
-        parse_mode="Markdown"
+        "Пример:\nлимит 40000\nлимит 40 000"
     )
 
 @bot.message_handler(
@@ -264,8 +260,7 @@ def inst_expense(message):
 
     bot.send_message(
         message.chat.id,
-        "🛍 Пример:\n`15000 еда`\n`500 000 поездки`\n`55,00 развлечения`",
-        parse_mode="Markdown"
+        "Пример:\n15000 еда\n500 000 поездки\n55,00 развлечения"
     )
 
 # =========================
@@ -569,7 +564,7 @@ def ai_chat_loop(message):
     )
 
 # =========================
-# KEEP ALIVE SERVER
+# KEEP ALIVE
 # =========================
 if __name__ == "__main__":
 
@@ -594,4 +589,3 @@ if __name__ == "__main__":
     print("БОТ ЗАПУЩЕН")
 
     bot.infinity_polling()
-```
