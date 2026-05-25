@@ -10,12 +10,12 @@ import telebot
 from telebot import types
 
 # СЮДА ВСТАВЬТЕ ВАШ ТОКЕН ВНУТРЬ КАВЫЧЕК:
-TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
+TOKEN = "ВАШ_ТОКЕН_ТЕЛЕГРАМ_БОТА"
 
 bot = telebot.TeleBot(TOKEN)
 
-# Инициализация базы данных SQLite
-conn = sqlite3.connect("wallet_v3.db", check_same_thread=False)
+# Инициализация абсолютно новой чистой базы данных
+conn = sqlite3.connect("wallet_final.db", check_same_thread=False)
 cursor = conn.cursor()
 cursor.execute('''CREATE TABLE IF NOT EXISTS wallet (balance REAL, utopia_limit REAL)''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS expenses (category TEXT, amount REAL, date TEXT)''')
@@ -29,10 +29,9 @@ if not cursor.fetchone():
 CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", "развлечения": "🎉 Развлечения", "для дома": "🏠 Для дома"}
 
 def get_days_left():
-    """Автоматически считает количество дней до конца текущего месяца по календарю"""
     today = datetime.date.today()
     last_day = calendar.monthrange(today.year, today.month)
-    return max(1, last_day - today.day + 1)
+    return max(1, last_day[1] - today.day + 1)
 
 def get_wallet_data():
     cursor.execute("SELECT balance, utopia_limit FROM wallet")
@@ -46,7 +45,7 @@ def ask_free_ai(prompt_text):
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
     except:
-        return "Суровый аудит: Вы тратите слишком много! Сократите расходы на развлечения. Дебет не сходится с кредитом!"
+        return "Суровый аудит: Вы тратите слишком много! Сократите расходы. Дебет не сходится с кредитом!"
 
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -88,7 +87,7 @@ def view_analytics(message):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_t = cursor.fetchone()
-    spent_today = row_t if row_t and row_t else 0.0
+    spent_today = row_t[0] if row_t and row_t[0] else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
@@ -141,8 +140,8 @@ def process_expense_amount(message):
 @bot.callback_query_handler(func=lambda call: call.data.startswith("cat_"))
 def process_expense_category(call):
     parts = call.data.split("_")
-    category_key = parts
-    amount = float(parts)
+    category_key = parts[1]
+    amount = float(parts[2])
     
     b, utopia = get_wallet_data()
     new_bal = b - amount
@@ -152,12 +151,10 @@ def process_expense_category(call):
     cursor.execute("INSERT INTO expenses VALUES (?, ?, ?)", (category_key, amount, today))
     conn.commit()
     
-    # Проверяем общие трат за один сегодняшний день
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_today = cursor.fetchone()
-    today_spent = row_today if row_today and row_today else 0.0
+    today_spent = row_today[0] if row_today and row_today[0] else 0.0
     
-    # Сравниваем траты за сегодня строго с вашей Утопией!
     alert = ""
     if today_spent > utopia:
         alert = f"\n\n🚨 *ТЫ СУМАСШЕДШИЙ!* Траты за сегодня ({today_spent:,.0f} сум) превысили твой жесткий лимит Утопии ({utopia:,.0f} сум)! Живо закрой кошелек! 😡"
