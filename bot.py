@@ -3,6 +3,9 @@ import datetime
 import calendar
 import urllib.request
 import json
+import os
+import threading
+from http.server import SimpleHTTPRequestHandler, HTTPServer
 import telebot
 from telebot import types
 
@@ -89,7 +92,7 @@ def view_analytics(message):
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Баланс: *{balance:,.0f} сум*\n🛡 Лимит: *{real_limit:,.0f} сум/день* ({days} дн.)\n✨ Утопия: *{utopia:,.0f} сум/день*\n◽️ За сегодня ушло: {spent_today:,.0f} сум\n\n📢 *Статус:* {status}", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text == "➕ Доход")
-async def start_income(message):
+def start_income(message):
     msg = bot.send_message(message.chat.id, "Введите сумму пополнения (в сумах):")
     bot.register_next_step_handler(msg, process_income)
 
@@ -99,7 +102,7 @@ def process_income(message):
         b, _ = get_wallet_data()
         cursor.execute("UPDATE wallet SET balance = ?", (b + amount,))
         conn.commit()
-        bot.send_message(message.chat.id, f"💰 Баланс успешно пополнен на *+{amount:,.0f} сум*.", parse_mode="Markdown")
+        bot.send_message(message.chat.id, f"💰 Баланс успешно пополнен на *+{amount:,.0f} сум*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
     except ValueError:
         bot.send_message(message.chat.id, "⚠️ Введите корректное число.")
 
@@ -161,4 +164,13 @@ def ai_chat_loop(message):
     bot.register_next_step_handler(msg, ai_chat_loop)
 
 if __name__ == "__main__":
+    # Создаем фальшивый веб-сервер для обмана Render
+    def run_fake_server():
+        port = int(os.environ.get("PORT", 10000))
+        server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
+        server.serve_forever()
+        
+    threading.Thread(target=run_fake_server, daemon=True).start()
+    
+    # Запускаем нашего бота
     bot.infinity_polling()
