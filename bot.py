@@ -10,7 +10,7 @@ import telebot
 from telebot import types
 
 # СЮДА ВСТАВЬТЕ ВАШ ТОКЕН ВНУТРЬ КАВЫЧЕК:
-TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
+TOKEN = "ВАШ_ТОКЕН_ТЕЛЕГРАМ_БОТА"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -29,8 +29,9 @@ if not cursor.fetchone():
 CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", "развлечения": "🎉 Развлечения", "для дома": "🏠 Для дома"}
 
 def get_days_left():
+    """Автоматически считает количество дней до конца текущего месяца по календарю"""
     today = datetime.date.today()
-    last_day = calendar.monthrange(today.year, today.month)
+    last_day = calendar.monthrange(today.year, today.month)[1]
     return max(1, last_day - today.day + 1)
 
 def get_wallet_data():
@@ -70,12 +71,13 @@ def view_utopia(message):
 
 def set_utopia(message):
     try:
-        amount = float(message.text)
+        clean_text = message.text.replace(" ", "").replace(",", "")
+        amount = float(clean_text)
         cursor.execute("UPDATE wallet SET utopia_limit = ?", (amount,))
         conn.commit()
         bot.send_message(message.chat.id, f"✅ Лимит «Утопия» установлен: *{amount:,.0f} сум/день*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Введите число без букв.")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами (например: 1000000).")
 
 @bot.message_handler(func=lambda msg: msg.text == "📊 Аналитика")
 def view_analytics(message):
@@ -98,13 +100,28 @@ def start_income(message):
 
 def process_income(message):
     try:
-        amount = float(message.text)
+        clean_text = message.text.replace(" ", "").replace(",", "")
+        amount = float(clean_text)
+        
         b, _ = get_wallet_data()
-        cursor.execute("UPDATE wallet SET balance = ?", (b + amount,))
+        new_bal = b + amount
+        cursor.execute("UPDATE wallet SET balance = ?", (new_bal,))
         conn.commit()
-        bot.send_message(message.chat.id, f"💰 Баланс успешно пополнен на *+{amount:,.0f} сум*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
+        
+        days = get_days_left()
+        real_limit = new_bal / days if new_bal > 0 else 0
+        
+        bot.send_message(
+            message.chat.id, 
+            f"💰 *Баланс успешно пополнен!*\n\n"
+            f"👛 Всего в кошельке: *{new_bal:,.0f} сум*\n"
+            f"📅 До конца месяца осталось дней: *{days}*\n\n"
+            f"🚀 Исходя из сегодняшней даты, ваш максимальный лимит: *{real_limit:,.0f} сум/день*.", 
+            reply_markup=get_main_keyboard(), 
+            parse_mode="Markdown"
+        )
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Введите корректное число.")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами без букв и пробелов (например: 1000000).")
 
 @bot.message_handler(func=lambda msg: msg.text == "📉 Расход")
 def start_expense(message):
@@ -113,7 +130,8 @@ def start_expense(message):
 
 def process_expense_amount(message):
     try:
-        amount = float(message.text)
+        clean_text = message.text.replace(" ", "").replace(",", "")
+        amount = float(clean_text)
         markup = types.InlineKeyboardMarkup()
         for key, name in CATEGORIES.items():
             markup.add(types.InlineKeyboardButton(text=name, callback_data=f"cat_{key}_{amount}"))
@@ -133,7 +151,10 @@ def process_expense_category(call):
     cursor.execute("INSERT INTO expenses VALUES (?, ?, ?)", (category_key, amount, datetime.date.today().isoformat()))
     conn.commit()
     
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=f"✅ Расход записан: *-{amount:,.0f} сум* в категорию *{CATEGORIES[category_key]}*.\n👛 Остаток: {new_bal:,.0f} сум.", parse_mode="Markdown")
+    days = get_days_left()
+    real_limit = new_bal / days if new_bal > 0 else 0
+    
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=f"✅ Расход записан: *-{amount:,.0f} сум* в категорию *{CATEGORIES[category_key]}*.\n👛 Остаток в кошельке: *{new_bal:,.0f} сум*.\n📉 Новый лимит на оставшиеся дни: *{real_limit:,.0f} сум/день*.", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text == "🤖 ИИ Бухгалтер")
 def ai_analyst(message):
@@ -164,13 +185,10 @@ def ai_chat_loop(message):
     bot.register_next_step_handler(msg, ai_chat_loop)
 
 if __name__ == "__main__":
-    # Создаем фальшивый веб-сервер для обмана Render
     def run_fake_server():
         port = int(os.environ.get("PORT", 10000))
         server = HTTPServer(('0.0.0.0', port), SimpleHTTPRequestHandler)
         server.serve_forever()
         
     threading.Thread(target=run_fake_server, daemon=True).start()
-    
-    # Запускаем нашего бота
     bot.infinity_polling()
