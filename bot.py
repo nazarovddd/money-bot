@@ -30,7 +30,7 @@ CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", 
 
 def get_days_left():
     today = datetime.date.today()
-    last_day = calendar.monthrange(today.year, today.month)[1]
+    last_day = calendar.monthrange(today.year, today.month)
     return max(1, last_day - today.day + 1)
 
 def get_wallet_data():
@@ -58,7 +58,7 @@ def ask_free_ai(prompt_text):
         with urllib.request.urlopen(req, timeout=15) as response:
             return response.read().decode('utf-8')
     except:
-        return "Суровый аудит: Обнаружена ошибка дебита! Похоже, финансовая нейросеть временно недоступна."
+        return "Суровый адит: Обнаружена ошибка дебита! Похоже, финансовая нейросеть временно недоступна."
 
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
@@ -100,7 +100,7 @@ def view_analytics(message):
     
     cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
     row_t = cursor.fetchone()
-    spent_today = row_t[0] if row_t and row_t[0] else 0.0
+    spent_today = row_t if row_t and row_t else 0.0
     
     status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
     bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
@@ -174,7 +174,7 @@ def process_expense_category(call):
     else:
         remains = utopia - today_spent
         if remains <= 15000 and remains > 0:
-            alert = f"\n\n⚠️ *ВНИМАНИЕ!* Ты стремительно приближаешься к критическому лимиту на сегодня! Осталось всего *{remains:,.0f} сум*. Дальнейшие траты делай обдуманно и трать раздумывая! 🧐"
+            alert = f"\n\n⚠️ *ВНИМАНИЕ!* Ты стремительно приближаешься к критическому лимиту на сегодня! Осталось всего *{remains:,.0f} сум*. Дальнейшие трат делай обдуманно и трать раздумывая! 🧐"
         else:
             alert = f"\n\n🟢 Твой запас лимита до конца дня: *{remains:,.0f} сум*. Всё в норме."
         
