@@ -31,7 +31,7 @@ CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", 
 
 def get_days_left():
     today = datetime.date.today()
-    last_day = calendar.monthrange(today.year, today.month)[1]
+    last_day = calendar.monthrange(today.year, today.month)
     return max(1, last_day - today.day + 1)
 
 def get_wallet_data():
@@ -44,15 +44,12 @@ def clean_amount_text(text):
     return text.replace(" ", "").replace(",", "").replace(".", "").strip()
 
 def ask_free_ai(prompt_text):
-    """Использует альтернативный стабильный бесплатный ИИ-шлюз"""
+    """Использует ультра-стабильный бесплатный шлюз к нейросети Gemini"""
     try:
-        url = "https://pollinations.ai"
+        url = "https://aryahcr.cc"
         data = {
-            "messages": [
-                {"role": "system", "content": "Ты профессиональный и строгий главный бухгалтер в Узбекистане (Ташкент). Твоя цель — помочь пользователю сэкономить. Говори строго на русском языке, используй термины дебет, кредит, сальдо. Оценивай цены по меркам Узбекистана (сум). Задавай один жесткий вопрос в конце."},
-                {"role": "user", "content": prompt_text}
-            ],
-            "model": "searchgpt"
+            "prompt": prompt_text,
+            "model": "gemini"
         }
         req = urllib.request.Request(
             url, 
@@ -61,9 +58,22 @@ def ask_free_ai(prompt_text):
             method='POST'
         )
         with urllib.request.urlopen(req, timeout=15) as response:
-            return response.read().decode('utf-8')
-    except:
-        return "🤖 ИИ-Бухгалтер: Сальдо под угрозой! Обнаружен перерасход лимита в категориях потребления. Немедленно сократите дебет на развлечения и фастфуд, иначе закроете месяц в жестком минусе! Каковы были основания для этих нецелевых трат?"
+            res_data = json.loads(response.read().decode('utf-8'))
+            if "content" in res_data:
+                return res_data["content"]
+            elif "message" in res_data:
+                return res_data["message"]
+            else:
+                return str(res_data)
+    except Exception as e:
+        try:
+            url_backup = "https://pollinations.ai"
+            data_backup = {"messages": [{"role": "user", "content": prompt_text}], "model": "openai"}
+            req_b = urllib.request.Request(url_backup, data=json.dumps(data_backup).encode('utf-8'), headers={'Content-Type': 'application/json', 'User-Agent': 'Mozilla/5.0'}, method='POST')
+            with urllib.request.urlopen(req_b, timeout=10) as response_b:
+                return response_b.read().decode('utf-8')
+        except:
+            return "🤖 ИИ-Бухгалтер: Сальдо под угрозой! Зафиксирован технический сбой связи с сервером аудита. Срочно перепроверьте дебет и кредит вручную, пока система восстанавливает баланс!"
 
 def get_main_keyboard():
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
