@@ -10,7 +10,7 @@ import telebot
 from telebot import types
 
 # СЮДА ВСТАВЬТЕ ВАШ ТОКЕН ВНУТРЬ КАВЫЧЕК:
-TOKEN = "8102394026:AAEREm1tYAs9265zJ0aKSx9Z9l2jnw3kKMM"
+TOKEN = "ВАШ_ТОКЕН_ТЕЛЕГРАМ_БОТА"
 
 bot = telebot.TeleBot(TOKEN)
 
@@ -31,7 +31,7 @@ CATEGORIES = {"еда": "🍔 Еда", "поездки": "🚖 Поездки", 
 def get_days_left():
     """Автоматически считает количество дней до конца текущего месяца по календарю"""
     today = datetime.date.today()
-    last_day = calendar.monthrange(today.year, today.month)[1]
+    last_day = calendar.monthrange(today.year, today.month)
     return max(1, last_day - today.day + 1)
 
 def get_wallet_data():
@@ -66,7 +66,7 @@ def start(message):
 @bot.message_handler(func=lambda msg: msg.text == "✨ Утопия")
 def view_utopia(message):
     _, utopia = get_wallet_data()
-    msg = bot.send_message(message.chat.id, f"🪐 *Режим УТОПИЯ*\n\nТекущий желаемый лимит: *{utopia:,.0f} сум/день*.\n\nВведи новую сумму цифрами для изменения:", parse_mode="Markdown")
+    msg = bot.send_message(message.chat.id, f"🪐 *Режим УТОПИЯ*\n\nТекущий жесткий лимит: *{utopia:,.0f} сум/день*.\n\nВведи новую сумму цифрами, которую ты запрещаешь себе превышать в день:", parse_mode="Markdown")
     bot.register_next_step_handler(msg, set_utopia)
 
 def set_utopia(message):
@@ -75,9 +75,9 @@ def set_utopia(message):
         amount = float(clean_text)
         cursor.execute("UPDATE wallet SET utopia_limit = ?", (amount,))
         conn.commit()
-        bot.send_message(message.chat.id, f"✅ Лимит «Утопия» установлен: *{amount:,.0f} сум/день*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
+        bot.send_message(message.chat.id, f"✅ Жесткий лимит «Утопия» успешно обновлен в базе: *{amount:,.0f} сум/день*.", reply_markup=get_main_keyboard(), parse_mode="Markdown")
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами (например: 1000000).")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами (например: 40000).")
 
 @bot.message_handler(func=lambda msg: msg.text == "📊 Аналитика")
 def view_analytics(message):
@@ -90,8 +90,8 @@ def view_analytics(message):
     row_t = cursor.fetchone()
     spent_today = row_t[0] if row_t and row_t[0] else 0.0
     
-    status = "🟢 Всё под контролем." if real_limit >= utopia else "🔴 Внимание! Срочно экономьте!"
-    bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Баланс: *{balance:,.0f} сум*\n🛡 Лимит: *{real_limit:,.0f} сум/день* ({days} дн.)\n✨ Утопия: *{utopia:,.0f} сум/день*\n◽️ За сегодня ушло: {spent_today:,.0f} сум\n\n📢 *Статус:* {status}", parse_mode="Markdown")
+    status = "🟢 Ты красавчик, укладываешься в лимит!" if spent_today <= utopia else "🔴 ТЫ ПРЕВЫСИЛ СВОЮ УТОПИЮ! Срочно тормози!"
+    bot.send_message(message.chat.id, f"📊 *ФИНАНСОВАЯ АНАЛИТИКА*\n\n💰 Всего в кошельке: *{balance:,.0f} сум*\n📅 До конца месяца осталось: *{days} дн.*\n\n✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*\n◽️ Потрачено за сегодня: *{spent_today:,.0f} сум*\n🛡 Реальный математический остаток: {real_limit:,.0f} сум/день\n\n📢 *Статус дел:* {status}", parse_mode="Markdown")
 
 @bot.message_handler(func=lambda msg: msg.text == "➕ Доход")
 def start_income(message):
@@ -103,25 +103,24 @@ def process_income(message):
         clean_text = message.text.replace(" ", "").replace(",", "")
         amount = float(clean_text)
         
-        b, _ = get_wallet_data()
+        b, utopia = get_wallet_data()
         new_bal = b + amount
         cursor.execute("UPDATE wallet SET balance = ?", (new_bal,))
         conn.commit()
         
         days = get_days_left()
-        real_limit = new_bal / days if new_bal > 0 else 0
         
         bot.send_message(
             message.chat.id, 
             f"💰 *Баланс успешно пополнен!*\n\n"
             f"👛 Всего в кошельке: *{new_bal:,.0f} сум*\n"
-            f"📅 До конца месяца осталось дней: *{days}*\n\n"
-            f"🚀 Исходя из сегодняшней даты, ваш максимальный лимит: *{real_limit:,.0f} сум/день*.", 
+            f"📅 Оставшиеся дни месяца: *{days}*\n"
+            f"✨ Твой установленный лимит: *{utopia:,.0f} сум/день*.", 
             reply_markup=get_main_keyboard(), 
             parse_mode="Markdown"
         )
     except ValueError:
-        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами без букв и пробелов (например: 1000000).")
+        bot.send_message(message.chat.id, "⚠️ Ошибка! Введите сумму только цифрами.")
 
 @bot.message_handler(func=lambda msg: msg.text == "📉 Расход")
 def start_expense(message):
@@ -145,16 +144,35 @@ def process_expense_category(call):
     category_key = parts[1]
     amount = float(parts[2])
     
-    b, u = get_wallet_data()
+    b, utopia = get_wallet_data()
     new_bal = b - amount
+    
+    today = datetime.date.today().isoformat()
     cursor.execute("UPDATE wallet SET balance = ?", (new_bal,))
-    cursor.execute("INSERT INTO expenses VALUES (?, ?, ?)", (category_key, amount, datetime.date.today().isoformat()))
+    cursor.execute("INSERT INTO expenses VALUES (?, ?, ?)", (category_key, amount, today))
     conn.commit()
     
-    days = get_days_left()
-    real_limit = new_bal / days if new_bal > 0 else 0
+    # Проверяем общие траты за один сегодняшний день
+    cursor.execute("SELECT SUM(amount) FROM expenses WHERE date = ?", (today,))
+    row_today = cursor.fetchone()
+    today_spent = row_today[0] if row_today and row_today[0] else 0.0
     
-    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=f"✅ Расход записан: *-{amount:,.0f} сум* в категорию *{CATEGORIES[category_key]}*.\n👛 Остаток в кошельке: *{new_bal:,.0f} сум*.\n📉 Новый лимит на оставшиеся дни: *{real_limit:,.0f} сум/день*.", parse_mode="Markdown")
+    # Сравниваем траты за сегодня строго с вашей Утопией!
+    alert = ""
+    if today_spent > utopia:
+        alert = f"\n\n🚨 *ТЫ СУМАСШЕДШИЙ!* Траты за сегодня ({today_spent:,.0f} сум) превысили твой жесткий лимит Утопии ({utopia:,.0f} сум)! Живо закрой кошелек! 😡"
+    else:
+        remains = utopia - today_spent
+        alert = f"\n\n🟢 До превышения лимита на сегодня осталось: *{remains:,.0f} сум*."
+        
+    bot.edit_message_text(
+        chat_id=call.message.chat.id, 
+        message_id=call.message.message_id, 
+        text=f"✅ Расход записан: *-{amount:,.0f} сум* в категорию *{CATEGORIES[category_key]}*.\n"
+             f"👛 Остаток в кошельке: *{new_bal:,.0f} сум*.\n"
+             f"✨ Твой лимит (Утопия): *{utopia:,.0f} сум/день*.{alert}", 
+        parse_mode="Markdown"
+    )
 
 @bot.message_handler(func=lambda msg: msg.text == "🤖 ИИ Бухгалтер")
 def ai_analyst(message):
