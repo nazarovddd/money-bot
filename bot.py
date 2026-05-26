@@ -20,7 +20,7 @@ TOKEN = os.environ.get("BOT_TOKEN")
 
 # Хорошая практика: добавить проверку, чтобы бот не падал с непонятной ошибкой
 if not TOKEN:
-    raise ValueError("8102394026:AAF5kNMBWYmOLQ7hfh4af2lTvQCJpfoCAdI")
+    raise ValueError("BOT_TOKEN not found")
 
 bot = telebot.TeleBot(TOKEN)
 
